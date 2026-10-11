@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>API Launcher</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:860px;margin:2rem auto;padding:0 1rem;background:#f6f7f9;color:#1a1a1a}
+h1{margin-bottom:.2rem}.card{background:#fff;border-radius:12px;padding:1.2rem;margin-top:1rem;box-shadow:0 1px 4px #0001}
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:1rem}label{font-weight:600;display:block;margin-bottom:.4rem}
+select,textarea{width:100%;padding:.6rem;border:1px solid #ccc;border-radius:8px;font:inherit;box-sizing:border-box}
+textarea{font-family:monospace;height:110px}
+button{background:#2563eb;color:#fff;border:0;padding:.7rem 1.4rem;border-radius:8px;font-size:1rem;cursor:pointer;margin-top:.8rem}
+button.sec{background:#64748b}pre{background:#0f172a;color:#e2e8f0;padding:1rem;border-radius:8px;overflow:auto;max-height:380px;white-space:pre-wrap}
+small{color:#555}
+</style></head><body>
+<h1>API Launcher</h1><small>Launch the API in any mode: Stateful / Stateless &times; Synchronous / Asynchronous</small>
+<div class="card">
+ <div class="modes">
+  <div><label>State</label><select id="state"><option value="stateless">Stateless (no memory on server)</option><option value="stateful">Stateful (session kept on server)</option></select></div>
+  <div><label>Flow</label><select id="flow"><option value="sync">Synchronous (instant response)</option><option value="async">Asynchronous (202 + poll/stream)</option></select></div>
+ </div>
+ <label style="margin-top:1rem">Payload (JSON)</label>
+ <textarea id="payload">{"text":"hello","numbers":[1,2,3]}</textarea>
+ <button onclick="launch()">Launch API</button>
+ <button class="sec" onclick="resetSession()">Reset session</button>
+ <div><small id="sid">Session: none</small></div>
+</div>
+<div class="card"><label>Response log</label><pre id="log">Waiting...</pre></div>
+<script>
+let sessionId=null;const log=m=>{const l=document.getElementById('log');l.textContent=(typeof m==='string'?m:JSON.stringify(m,null,2))+'\n\n'+l.textContent};
+function resetSession(){sessionId=null;document.getElementById('sid').textContent='Session: none'}
+async function launch(){
+ let payload;try{payload=JSON.parse(document.getElementById('payload').value)}catch{return log('Invalid JSON payload')}
+ const state=document.getElementById('state').value,flow=document.getElementById('flow').value;
+ const headers={'Content-Type':'application/json'};if(state==='stateful'&&sessionId)headers['x-session-id']=sessionId;
+ const r=await fetch('/api/launch',{method:'POST',headers,body:JSON.stringify({state,flow,payload})});
+ const d=await r.json();log({httpStatus:r.status,...d});
+ if(d.sessionId){sessionId=d.sessionId;document.getElementById('sid').textContent='Session: '+sessionId+' (calls: '+d.callNumber+')'}
+ if(d.eventsUrl){const es=new EventSource(d.eventsUrl);es.onmessage=e=>{const j=JSON.parse(e.data);log({asyncUpdate:j});if(j.status==='done')es.close()}}
+}
+</script></body></html>
